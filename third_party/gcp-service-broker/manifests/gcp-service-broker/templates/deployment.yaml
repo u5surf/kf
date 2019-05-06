@@ -1,0 +1,110 @@
+---
+# Source: gcp-service-broker/templates/deployment.yaml
+# Copyright 2019 the Service Broker Project Authors. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gcp-service-broker
+  labels:
+    app.kubernetes.io/name: gcp-service-broker
+    helm.sh/chart: gcp-service-broker-5.0.0
+    app.kubernetes.io/instance: gcp-service-broker
+    app.kubernetes.io/managed-by: Tiller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gcp-service-broker
+      app.kubernetes.io/instance: gcp-service-broker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gcp-service-broker
+        app.kubernetes.io/instance: gcp-service-broker
+    spec:
+      containers:
+        - name: gcp-service-broker
+          image: "gcr.io/gcp-service-broker/gcp-service-broker:develop"
+          imagePullPolicy: IfNotPresent
+          args: ["serve"]
+          env:
+          - name: "PORT"
+            value: "8080"
+          - name: "ROOT_SERVICE_ACCOUNT_JSON"
+            valueFrom:
+              secretKeyRef:
+                name: gcp-service-broker-creds
+                key: service_account
+          - name: "SECURITY_USER_NAME"
+            valueFrom:
+              secretKeyRef:
+                name: gcp-service-broker-auth
+                key: username
+          - name: "SECURITY_USER_PASSWORD"
+            valueFrom:
+              secretKeyRef:
+                name: gcp-service-broker-auth
+                key: password
+          - name: "DB_HOST"
+            value: gcp-service-broker-mysql
+          - name: "DB_USERNAME"
+            valueFrom:
+              secretKeyRef:
+                name: gcp-service-broker-creds
+                key: db_username
+          - name: "DB_PASSWORD"
+            valueFrom:
+              secretKeyRef:
+                name: gcp-service-broker-creds
+                key: db_password
+          - name: "DB_PORT"
+            value: "3306"
+          - name: "DB_NAME"
+            value: "servicebroker"
+          - name: "CA_CERT"
+            valueFrom:
+              secretKeyRef:
+                name: gcp-service-broker-creds
+                key: db_ca_cert
+          - name: "CLIENT_CERT"
+            valueFrom:
+              secretKeyRef:
+                name: gcp-service-broker-creds
+                key: db_client_cert
+          - name: "CLIENT_KEY"
+            valueFrom:
+              secretKeyRef:
+                name: gcp-service-broker-creds
+                key: db_client_key
+          - name: "GSB_BROKERPAK_CONFIG"
+            value: "{}"
+          - name: "GSB_SERVICE_CONFIG"
+            value: "{}"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+          resources:
+            null
+            

@@ -1,0 +1,14 @@
+---
+# Source: gcp-service-broker/charts/mysql/templates/tests/test-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gcp-service-broker-mysql-test
+  labels:
+    app: gcp-service-broker-mysql
+    chart: "mysql-0.15.0"
+    heritage: "Tiller"
+    release: "gcp-service-broker"
+data:
+  run.sh: |-
+

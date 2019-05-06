@@ -1,0 +1,18 @@
+---
+# Source: gcp-service-broker/charts/mysql/templates/pvc.yaml
+
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: gcp-service-broker-mysql
+  labels:
+    app: gcp-service-broker-mysql
+    chart: "mysql-0.15.0"
+    release: "gcp-service-broker"
+    heritage: "Tiller"
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: "8Gi"

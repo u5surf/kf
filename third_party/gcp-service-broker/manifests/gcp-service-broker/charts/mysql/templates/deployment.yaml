@@ -1,0 +1,92 @@
+---
+# Source: gcp-service-broker/charts/mysql/templates/deployment.yaml
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: gcp-service-broker-mysql
+  labels:
+    app: gcp-service-broker-mysql
+    chart: "mysql-0.15.0"
+    release: "gcp-service-broker"
+    heritage: "Tiller"
+spec:
+  template:
+    metadata:
+      labels:
+        app: gcp-service-broker-mysql
+    spec:
+      initContainers:
+      - name: "remove-lost-found"
+        image: "busybox:1.29.3"
+        imagePullPolicy: "IfNotPresent"
+        command:  ["rm", "-fr", "/var/lib/mysql/lost+found"]
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/mysql
+      # - name: do-something
+      #   image: busybox
+      #   command: ['do', 'something']
+      
+      containers:
+      - name: gcp-service-broker-mysql
+        image: "mysql:5.7.14"
+        imagePullPolicy: "IfNotPresent"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: gcp-service-broker-mysql
+              key: mysql-root-password
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: gcp-service-broker-mysql
+              key: mysql-password
+        - name: MYSQL_USER
+          value: "broker"
+        - name: MYSQL_DATABASE
+          value: "servicebroker"
+        ports:
+        - name: mysql
+          containerPort: 3306
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - "mysqladmin ping -u root -p${MYSQL_ROOT_PASSWORD}"
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - "mysqladmin ping -u root -p${MYSQL_ROOT_PASSWORD}"
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 1
+          successThreshold: 1
+          failureThreshold: 3
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/mysql
+        # - name: extras
+        #   mountPath: /usr/share/extras
+        #   readOnly: true
+        
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: gcp-service-broker-mysql
+      # - name: extras
+      #   emptyDir: {}
+      

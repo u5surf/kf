@@ -1,0 +1,20 @@
+---
+# Source: gcp-service-broker/charts/mysql/templates/svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: gcp-service-broker-mysql
+  labels:
+    app: gcp-service-broker-mysql
+    chart: "mysql-0.15.0"
+    release: "gcp-service-broker"
+    heritage: "Tiller"
+  annotations:
+spec:
+  type: ClusterIP
+  ports:
+  - name: mysql
+    port: 3306
+    targetPort: mysql
+  selector:
+    app: gcp-service-broker-mysql
