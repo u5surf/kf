@@ -55,14 +55,25 @@ kubectl apply -R -f third_party/service-catalog/manifests/catalog/templates
 ```
 
 
-## Upload buildpacks
+## Create a Kf space
 
-Buildpacks are provided by the operator and can be uploaded to Knative using
-a script. A set of buidpacks is included in this repo. They can be installed
-with the following:
+Kf Spaces are used to share a cluster with multiple teams. Each space creates a
+Kubernetes namespace, RBAC roles you can assign to developers in that space,
+quotas and configuration.
+
+Most options that would be shared across an entire install or organization in CF
+have been collapsed to the Space in Kf. For example, buildpacks, quotas, RBAC
+roles, and shared environment variables.
 
 ```.sh
-./hack/upload-buildpacks.sh
+kf create-space sandbox --container-registry $KF_REGISTRY
+```
+
+Once the space is created, use the following command to set it as the default
+for future space commands:
+
+```.sh
+kf target sandbox
 ```
 
 ## Install the service catalog
