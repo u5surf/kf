@@ -39,9 +39,9 @@ type pushConfig struct {
 	// HealthCheck is the health check to use on the app
 	HealthCheck *corev1.Probe
 	// MaxScale is the upper scale bound
-	MaxScale int
+	MaxScale *int
 	// MinScale is the lower scale bound
-	MinScale int
+	MinScale *int
 	// Namespace is the Kubernetes namespace to use
 	Namespace string
 	// NoStart is setup the app without starting it
@@ -128,13 +128,13 @@ func (opts PushOptions) HealthCheck() *corev1.Probe {
 
 // MaxScale returns the last set value for MaxScale or the empty value
 // if not set.
-func (opts PushOptions) MaxScale() int {
+func (opts PushOptions) MaxScale() *int {
 	return opts.toConfig().MaxScale
 }
 
 // MinScale returns the last set value for MinScale or the empty value
 // if not set.
-func (opts PushOptions) MinScale() int {
+func (opts PushOptions) MinScale() *int {
 	return opts.toConfig().MinScale
 }
 
@@ -230,14 +230,14 @@ func WithPushHealthCheck(val *corev1.Probe) PushOption {
 }
 
 // WithPushMaxScale creates an Option that sets the upper scale bound
-func WithPushMaxScale(val int) PushOption {
+func WithPushMaxScale(val *int) PushOption {
 	return func(cfg *pushConfig) {
 		cfg.MaxScale = val
 	}
 }
 
 // WithPushMinScale creates an Option that sets the lower scale bound
-func WithPushMinScale(val int) PushOption {
+func WithPushMinScale(val *int) PushOption {
 	return func(cfg *pushConfig) {
 		cfg.MinScale = val
 	}
