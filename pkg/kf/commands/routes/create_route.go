@@ -80,7 +80,7 @@ Instead use the --namespace flag.`)
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: space,
-					Name: v1alpha1.GenerateRouteName(
+					Name: v1alpha1.GenerateRouteClaimName(
 						hostname,
 						domain,
 						urlPath,

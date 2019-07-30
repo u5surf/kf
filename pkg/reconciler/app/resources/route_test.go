@@ -15,11 +15,13 @@
 package resources
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/google/kf/pkg/apis/kf/v1alpha1"
 	"github.com/google/kf/pkg/kf/testutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 func TestMakeRoutes(t *testing.T) {
@@ -30,6 +32,46 @@ func TestMakeRoutes(t *testing.T) {
 		space  v1alpha1.Space
 		assert func(t *testing.T, routes []v1alpha1.Route)
 	}{
+		"configures correctly": {
+			app: v1alpha1.App{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "some-name",
+				},
+				Spec: v1alpha1.AppSpec{
+					Routes: []v1alpha1.RouteSpecFields{
+						{Hostname: "some-hostname", Domain: "example.com", Path: "/some-path"},
+					},
+				},
+			},
+			assert: func(t *testing.T, routes []v1alpha1.Route) {
+				testutil.AssertEqual(t, "len(routes)", 2, len(routes))
+				testutil.AssertEqual(t, "route.Spec.AppName", "some-name", routes[0].Spec.AppName)
+				testutil.AssertEqual(t, "route.Spec.Domain", "example.com", routes[0].Spec.Domain)
+				testutil.AssertEqual(t, "route.Spec.Hostname", "some-hostname", routes[0].Spec.Hostname)
+				testutil.AssertEqual(t, "route.Spec.Path", "/some-path", routes[0].Spec.Path)
+			},
+		},
+		"creates claim route": {
+			app: v1alpha1.App{
+				Spec: v1alpha1.AppSpec{
+					Routes: []v1alpha1.RouteSpecFields{
+						{Hostname: "some-hostname", Domain: "example.com", Path: "/some-path"},
+					},
+				},
+			},
+			assert: func(t *testing.T, routes []v1alpha1.Route) {
+				testutil.AssertEqual(t, "len(routes)", 2, len(routes))
+				testutil.AssertEqual(
+					t,
+					"route.ObjectMeta.Name",
+					v1alpha1.GenerateRouteName("some-hostname", "example.com", "/some-path", ""),
+					routes[1].Name,
+				)
+				testutil.AssertEqual(t, "route.Spec.Domain", "example.com", routes[1].Spec.Domain)
+				testutil.AssertEqual(t, "route.Spec.Hostname", "some-hostname", routes[1].Spec.Hostname)
+				testutil.AssertEqual(t, "route.Spec.Path", "/some-path", routes[1].Spec.Path)
+			},
+		},
 		"no domain, uses space default": {
 			space: v1alpha1.Space{
 				Spec: v1alpha1.SpaceSpec{
@@ -49,33 +91,9 @@ func TestMakeRoutes(t *testing.T) {
 				},
 			},
 			assert: func(t *testing.T, routes []v1alpha1.Route) {
-				testutil.AssertEqual(t, "len(routes)", 1, len(routes))
+				testutil.AssertEqual(t, "len(routes)", 2, len(routes))
 				testutil.AssertEqual(t, "route.Spec.Domain", "example.com", routes[0].Spec.Domain)
 				testutil.AssertEqual(t, "route.Spec.Hostname", "some-hostname", routes[0].Spec.Hostname)
-			},
-		},
-		"adds app name in AppNames": {
-			space: v1alpha1.Space{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "some-space-name",
-				},
-			},
-			app: v1alpha1.App{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "some-app-name",
-					Namespace: "some-space-name",
-				},
-				Spec: v1alpha1.AppSpec{
-					Routes: []v1alpha1.RouteSpecFields{
-						{Hostname: "some-hostname", Domain: "example.com"},
-					},
-				},
-			},
-			assert: func(t *testing.T, routes []v1alpha1.Route) {
-				testutil.AssertEqual(t, "len(routes)", 1, len(routes))
-				testutil.AssertEqual(t, "route.Spec.Domain", "example.com", routes[0].Spec.Domain)
-				testutil.AssertEqual(t, "route.Spec.Hostname", "some-hostname", routes[0].Spec.Hostname)
-				testutil.AssertEqual(t, "route.Spec.AppNames", []string{"some-app-name"}, routes[0].Spec.AppNames)
 			},
 		},
 		"ObjectMeta": {
@@ -98,11 +116,11 @@ func TestMakeRoutes(t *testing.T) {
 				},
 			},
 			assert: func(t *testing.T, routes []v1alpha1.Route) {
-				testutil.AssertEqual(t, "len(routes)", 1, len(routes))
+				testutil.AssertEqual(t, "len(routes)", 2, len(routes))
 				testutil.AssertEqual(
 					t,
 					"route.ObjectMeta.Name",
-					v1alpha1.GenerateRouteName("some-hostname", "some-domain", "some-path"),
+					v1alpha1.GenerateRouteName("some-hostname", "some-domain", "some-path", "some-app-name"),
 					routes[0].ObjectMeta.Name,
 				)
 				testutil.AssertEqual(t, "route.ObjectMeta.Labels", map[string]string{
@@ -110,7 +128,17 @@ func TestMakeRoutes(t *testing.T) {
 					"b":                     "2",
 					v1alpha1.ManagedByLabel: "kf",
 					v1alpha1.ComponentLabel: "route",
+					v1alpha1.RouteHostname:  "some-hostname",
+					v1alpha1.RouteDomain:    "some-domain",
+					v1alpha1.RoutePath:      toBase36("/some-path"),
+					v1alpha1.RouteAppName:   "some-app-name",
 				}, routes[0].ObjectMeta.Labels)
+				testutil.AssertEqual(
+					t,
+					"OwnerReferences",
+					"some-app-name",
+					routes[0].ObjectMeta.OwnerReferences[0].Name,
+				)
 			},
 		},
 	} {
@@ -120,4 +148,54 @@ func TestMakeRoutes(t *testing.T) {
 			tc.assert(t, routes)
 		})
 	}
+}
+
+func ExampleMakeRouteLabels() {
+	l := MakeRouteLabels(v1alpha1.RouteSpecFields{
+		Hostname: "some-hostname",
+		Domain:   "some-domain",
+		Path:     "/some/path",
+	})
+
+	fmt.Println("Managed by:", l[v1alpha1.ManagedByLabel])
+	fmt.Println("Component Label:", l[v1alpha1.ComponentLabel])
+	fmt.Println("Route Hostname:", l[v1alpha1.RouteHostname])
+	fmt.Println("Route Domain:", l[v1alpha1.RouteDomain])
+	fmt.Println("Route Path (base-36):", l[v1alpha1.RoutePath])
+	fmt.Printf("Number of Keys: %d\n", len(l))
+
+	// Output: Managed by: kf
+	// Component Label: route
+	// Route Hostname: some-hostname
+	// Route Domain: some-domain
+	// Route Path (base-36): 2uusd3k2mp26d
+	// Number of Keys: 5
+}
+
+func TestMakeRouteSelector(t *testing.T) {
+	t.Parallel()
+
+	s := MakeRouteSelector(v1alpha1.RouteSpecFields{
+		Hostname: "some-host",
+		Domain:   "some-domain",
+		Path:     "some-path",
+	})
+
+	good := labels.Set{
+		v1alpha1.ManagedByLabel: "kf",
+		v1alpha1.ComponentLabel: "route",
+		v1alpha1.RouteHostname:  "some-host",
+		v1alpha1.RouteDomain:    "some-domain",
+		v1alpha1.RoutePath:      toBase36("/some-path"),
+	}
+	bad := labels.Set{
+		v1alpha1.ManagedByLabel: "other-kf",
+		v1alpha1.ComponentLabel: "other-route",
+		v1alpha1.RouteHostname:  "some-other-host",
+		v1alpha1.RouteDomain:    "some-other-host",
+		v1alpha1.RoutePath:      toBase36("some-other-path"),
+	}
+
+	testutil.AssertEqual(t, "matches", true, s.Matches(good))
+	testutil.AssertEqual(t, "doesn't match", false, s.Matches(bad))
 }

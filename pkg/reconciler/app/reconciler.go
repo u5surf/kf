@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/kf/pkg/apis/kf/v1alpha1"
 	kflisters "github.com/google/kf/pkg/client/listers/kf/v1alpha1"
+	"github.com/google/kf/pkg/kf/algorithms"
 	"github.com/google/kf/pkg/kf/systemenvinjector"
 	"github.com/google/kf/pkg/reconciler"
 	"github.com/google/kf/pkg/reconciler/app/resources"
@@ -196,6 +197,35 @@ func (r *Reconciler) ApplyChanges(ctx context.Context, app *v1alpha1.App) error 
 		desiredRoutes, err := resources.MakeRoutes(app, space)
 		if err != nil {
 			return condition.MarkTemplateError(err)
+		}
+
+		// Delete Stale Routes
+		existingRoutes, err := r.routeLister.
+			Routes(app.GetNamespace()).
+			List(resources.MakeRouteAppSelector(app))
+		if err != nil {
+			return condition.MarkReconciliationError("scanning for stale routes", err)
+		}
+
+		// Search to see if any of the existing routes are not in the desired
+		// list of routes and therefore stale. If they are, delete them.
+		for _, er := range existingRoutes {
+			if algorithms.Search(
+				0,
+				v1alpha1.Routes{*er},
+				v1alpha1.Routes(desiredRoutes),
+			) {
+				continue
+			}
+
+			// Not found in desired, must be stale.
+
+			if err := r.KfClientSet.
+				KfV1alpha1().
+				Routes(er.GetNamespace()).
+				Delete(er.Name, &metav1.DeleteOptions{}); err != nil {
+				return condition.MarkReconciliationError("deleting existing route", err)
+			}
 		}
 
 		var actualRoutes []*v1alpha1.Route

@@ -21,10 +21,12 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/google/kf/pkg/apis/kf/v1alpha1"
+	fakeapp "github.com/google/kf/pkg/kf/apps/fake"
 	"github.com/google/kf/pkg/kf/commands/config"
 	"github.com/google/kf/pkg/kf/commands/routes"
 	fakeroute "github.com/google/kf/pkg/kf/routes/fake"
 	"github.com/google/kf/pkg/kf/testutil"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestRoutes(t *testing.T) {
@@ -34,7 +36,7 @@ func TestRoutes(t *testing.T) {
 		Namespace   string
 		ExpectedErr error
 		Args        []string
-		Setup       func(t *testing.T, fakeRoute *fakeroute.FakeClient)
+		Setup       func(t *testing.T, fakeRoute *fakeroute.FakeClient, fakeApp *fakeapp.FakeClient)
 		BufferF     func(t *testing.T, buffer *bytes.Buffer)
 	}{
 		"wrong number of args": {
@@ -44,43 +46,54 @@ func TestRoutes(t *testing.T) {
 		"listing routes fails": {
 			Namespace:   "some-namespace",
 			ExpectedErr: errors.New("failed to fetch Routes: some-error"),
-			Setup: func(t *testing.T, fakeRoute *fakeroute.FakeClient) {
+			Setup: func(t *testing.T, fakeRoute *fakeroute.FakeClient, fakeApp *fakeapp.FakeClient) {
+				fakeApp.EXPECT().List(gomock.Any()).AnyTimes()
 				fakeRoute.EXPECT().List(gomock.Any()).Return(nil, errors.New("some-error"))
+			},
+		},
+		"listing apps fails": {
+			Namespace:   "some-namespace",
+			ExpectedErr: errors.New("failed to fetch Apps: some-error"),
+			Setup: func(t *testing.T, fakeRoute *fakeroute.FakeClient, fakeApp *fakeapp.FakeClient) {
+				fakeRoute.EXPECT().List(gomock.Any()).AnyTimes()
+				fakeApp.EXPECT().List(gomock.Any()).Return(nil, errors.New("some-error"))
 			},
 		},
 		"namespace": {
 			Namespace: "some-namespace",
-			Setup: func(t *testing.T, fakeRoute *fakeroute.FakeClient) {
+			Setup: func(t *testing.T, fakeRoute *fakeroute.FakeClient, fakeApp *fakeapp.FakeClient) {
 				fakeRoute.EXPECT().List("some-namespace")
+				fakeApp.EXPECT().List("some-namespace")
 			},
 		},
 		"display routes": {
 			Namespace: "some-namespace",
-			Setup: func(t *testing.T, fakeRoute *fakeroute.FakeClient) {
+			Setup: func(t *testing.T, fakeRoute *fakeroute.FakeClient, fakeApp *fakeapp.FakeClient) {
 				fakeRoute.EXPECT().List(gomock.Any()).Return([]v1alpha1.Route{
-					{
-						Spec: v1alpha1.RouteSpec{
-							RouteSpecFields: v1alpha1.RouteSpecFields{
-								Hostname: "host-1",
-								Domain:   "example.com",
-								Path:     "/path1",
-							},
-							AppNames: []string{"app-1", "app-2"},
-						},
-					},
+					buildRoute("host-1", "example.com", "/path1"),
+					buildRoute("host-2", "example.com", "/path1"),
+				}, nil)
+				fakeApp.EXPECT().List(gomock.Any()).Return([]v1alpha1.App{
+					buildApp("app-1", "host-1", "example.com", "path1"),
+					buildApp("app-2", "host-1", "example.com", "path1"),
+
+					// Host doesn't match and should be in a different group
+					buildApp("app-3", "host-2", "example.com", "/path1"),
 				}, nil)
 			},
 			BufferF: func(t *testing.T, buffer *bytes.Buffer) {
 				testutil.AssertContainsAll(t, buffer.String(), []string{"host-1", "example.com", "/path1", "app-1, app-2"})
+				testutil.AssertContainsAll(t, buffer.String(), []string{"host-2", "example.com", "/path1", "app-3"})
 			},
 		},
 	} {
 		t.Run(tn, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			fakeRoute := fakeroute.NewFakeClient(ctrl)
+			fakeApp := fakeapp.NewFakeClient(ctrl)
 
 			if tc.Setup != nil {
-				tc.Setup(t, fakeRoute)
+				tc.Setup(t, fakeRoute, fakeApp)
 			}
 
 			var buffer bytes.Buffer
@@ -89,6 +102,7 @@ func TestRoutes(t *testing.T) {
 					Namespace: tc.Namespace,
 				},
 				fakeRoute,
+				fakeApp,
 			)
 			cmd.SetArgs(tc.Args)
 			cmd.SetOutput(&buffer)
@@ -105,5 +119,32 @@ func TestRoutes(t *testing.T) {
 
 			ctrl.Finish()
 		})
+	}
+}
+
+func buildApp(name, hostname, domain, path string) v1alpha1.App {
+	return v1alpha1.App{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Spec: v1alpha1.AppSpec{
+			Routes: []v1alpha1.RouteSpecFields{
+				{
+					Hostname: hostname,
+					Domain:   domain,
+					Path:     path,
+				},
+			},
+		},
+	}
+}
+
+func buildRoute(hostname, domain, path string) v1alpha1.Route {
+	return v1alpha1.Route{
+		Spec: v1alpha1.RouteSpec{
+			RouteSpecFields: v1alpha1.RouteSpecFields{
+				Hostname: hostname,
+				Domain:   domain,
+				Path:     path,
+			},
+		},
 	}
 }

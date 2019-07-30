@@ -378,7 +378,7 @@ func InjectRoutes(p *config.KfParams) *cobra.Command {
 	wire.Build(
 		croutes.NewRoutesCommand,
 		routes.NewClient,
-		config.GetKfClient,
+		AppsSet,
 	)
 	return nil
 }
@@ -396,7 +396,7 @@ func InjectDeleteRoute(p *config.KfParams) *cobra.Command {
 	wire.Build(
 		croutes.NewDeleteRouteCommand,
 		routes.NewClient,
-		config.GetKfClient,
+		AppsSet,
 	)
 	return nil
 }
@@ -404,7 +404,6 @@ func InjectDeleteRoute(p *config.KfParams) *cobra.Command {
 func InjectMapRoute(p *config.KfParams) *cobra.Command {
 	wire.Build(
 		croutes.NewMapRouteCommand,
-		routes.NewClient,
 		AppsSet,
 	)
 	return nil
@@ -413,8 +412,7 @@ func InjectMapRoute(p *config.KfParams) *cobra.Command {
 func InjectUnmapRoute(p *config.KfParams) *cobra.Command {
 	wire.Build(
 		croutes.NewUnmapRouteCommand,
-		routes.NewClient,
-		config.GetKfClient,
+		AppsSet,
 	)
 	return nil
 }

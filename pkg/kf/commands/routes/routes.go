@@ -16,9 +16,13 @@ package routes
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"text/tabwriter"
 
+	"github.com/google/kf/pkg/apis/kf/v1alpha1"
+	"github.com/google/kf/pkg/kf/algorithms"
+	"github.com/google/kf/pkg/kf/apps"
 	"github.com/google/kf/pkg/kf/commands/config"
 	"github.com/google/kf/pkg/kf/commands/utils"
 	"github.com/google/kf/pkg/kf/routes"
@@ -29,6 +33,7 @@ import (
 func NewRoutesCommand(
 	p *config.KfParams,
 	c routes.Client,
+	a apps.Client,
 ) *cobra.Command {
 	return &cobra.Command{
 		Use:   "routes",
@@ -44,34 +49,67 @@ func NewRoutesCommand(
 
 			cmd.SilenceUsage = true
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Getting routes in namespace: %s\n", p.Namespace)
+			fmt.Fprintf(cmd.OutOrStdout(), "Getting routes in space: %s\n", p.Namespace)
+			fmt.Fprintln(cmd.OutOrStdout())
 
 			routes, err := c.List(p.Namespace)
 			if err != nil {
 				return fmt.Errorf("failed to fetch Routes: %s", err)
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Found %d routes in namespace %s\n", len(routes), p.Namespace)
-			fmt.Fprintln(cmd.OutOrStdout())
+			apps, err := a.List(p.Namespace)
+			if err != nil {
+				return fmt.Errorf("failed to fetch Apps: %s", err)
+			}
 
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 8, 4, 2, ' ', tabwriter.StripEscape)
-			fmt.Fprintln(w, "HOST\tDOMAIN\tPATH\tAPPS")
-			for _, route := range routes {
-				apps := strings.Join(route.Spec.AppNames, ", ")
+			fmt.Fprintln(w, "host\tdomain\tpath\tapps")
+			for _, route := range groupRoutes(routes) {
+				names := strings.Join(appNames(apps, route), ", ")
 				fmt.Fprintf(
 					w,
 					"%s\t%s\t%s\t%s\n",
-					route.Spec.Hostname,
-					route.Spec.Domain,
-					route.Spec.Path,
-					apps,
+					route.Hostname,
+					route.Domain,
+					route.Path,
+					names,
 				)
 			}
 
-			w.Flush()
-			return nil
+			return w.Flush()
 		},
 	}
+}
+
+func groupRoutes(routes []v1alpha1.Route) []v1alpha1.RouteSpecFields {
+	var fields v1alpha1.RouteSpecFieldsSlice
+	for _, r := range routes {
+		fields = append(fields, r.Spec.RouteSpecFields)
+	}
+
+	fields = algorithms.Dedupe(
+		v1alpha1.RouteSpecFieldsSlice(fields),
+	).(v1alpha1.RouteSpecFieldsSlice)
+	sort.Sort(fields)
+
+	return []v1alpha1.RouteSpecFields(fields)
+}
+
+func appNames(apps []v1alpha1.App, route v1alpha1.RouteSpecFields) []string {
+	var names []string
+	for _, app := range apps {
+		// Look to see if App already has Route
+		if !algorithms.Search(
+			0,
+			v1alpha1.RouteSpecFieldsSlice{route},
+			v1alpha1.RouteSpecFieldsSlice(app.Spec.Routes),
+		) {
+			continue
+		}
+
+		names = append(names, app.Name)
+	}
+	return names
 }
 
 func splitHost(h string) (subDomain, domain string) {

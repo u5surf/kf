@@ -35,10 +35,9 @@ type Route struct {
 
 // RouteSpec contains the specification for a route.
 type RouteSpec struct {
-	// AppNames contains the Kf Apps that are bound to the route.
+	// AppName contains the Kf App that is bound to the route.
 	// +optional
-	// +patchStrategy=merge
-	AppNames []string `json:"appNames,omitempty"`
+	AppName string `json:"appName,omitempty"`
 
 	// RouteSpecFields contains the fields of a route.
 	RouteSpecFields `json:",inline"`
