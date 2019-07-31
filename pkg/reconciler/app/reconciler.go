@@ -134,6 +134,7 @@ func (r *Reconciler) ApplyChanges(ctx context.Context, app *v1alpha1.App) error 
 			if err != nil {
 				return condition.MarkReconciliationError("creating", err)
 			}
+			app.Status.MarkSourceUnknown(actual.Name)
 		} else if err != nil {
 			return condition.MarkReconciliationError("getting latest", err)
 		} else if !metav1.IsControlledBy(actual, app) {

@@ -106,3 +106,15 @@ func (status *AppStatus) MarkSpaceHealthy() {
 func (status *AppStatus) MarkSpaceUnhealthy(reason, message string) {
 	status.manage().MarkFalse(AppConditionSpaceReady, reason, message)
 }
+
+// MarkSourceUnknown marks the Source's status as unknown for a given source.
+func (status *AppStatus) MarkSourceUnknown(sourceName string) {
+	status.
+		manage().
+		MarkUnknown(
+			AppConditionSourceReady,
+			"initializing",
+			"creating new source %s",
+			sourceName,
+		)
+}
