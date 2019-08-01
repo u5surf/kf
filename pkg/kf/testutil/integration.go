@@ -306,6 +306,11 @@ func RetryOnPanic(ctx context.Context, t *testing.T, f func()) {
 // prevent the panic.
 func PanicOnError(ctx context.Context, t *testing.T, messagePrefix string, errs <-chan error) {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				Logf(t, "PanicOnError: %+v\n", r)
+			}
+		}()
 		t.Helper()
 		select {
 		case <-ctx.Done():
